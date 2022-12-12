@@ -1,35 +1,133 @@
+# -*- coding: utf-8 -*-
+# Import required libraries
+
+import cv2
+from matplotlib import pyplot as plt
+import numpy as np
+import streamlit as st
+import requests
 #importing some useful packages
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-import numpy as np
-import cv2
-
 import os
 import tempfile
-
-import streamlit as st
 import pandas as pd
-
 import subprocess
 import sys
-import time
 # Import everything needed to edit/save/watch video clips
 from moviepy.editor import VideoFileClip
 from IPython.display import HTML
 
 #%matplotlib inline
-import math
 
-def grayscale(img):
-    """Applies the Grayscale transform
-    This will return an image with only one color channel
-    but NOTE: to see the returned image as grayscale
-    (assuming your grayscaled image is called 'gray')
-    you should call plt.imshow(gray, cmap='gray')"""
-    return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    # Or use BGR2GRAY if you read an image with cv2.imread()
-    # return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+import math
+# Home UI 
+
+def main():
+
+    st.set_page_config(layout="wide")
+
+    font_css = """
+    <style>
+    button[data-baseweb="tab"] {
+    font-size: 26px;
+    }
+    </style>
+    """
+
+    st.write(font_css, unsafe_allow_html=True)
+
+    tabs = st.tabs(('Image Lane Detection', 'Video Lane Detection'))
+
+    # UI Options  
+    with tabs[0]:
+        laneimage()
+    with tabs[1]:
+        lanevideo()
+
+# Pre-process Image
+def preProcessImg(img):
+    # Pre-processing image: resize image
+    height, width, _ = img.shape
+    width = int(480/height*width)
+    height = 480
+    img = cv2.resize(img,(width,height))
+    return img
+
+# Upload Image
+def uploadImage(key):
+    uploaded_file = st.file_uploader("Choose a Image file",key=key)
+    if uploaded_file is not None:
+        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+        img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+
+        # Pre-processing image: resize image
+        return preProcessImg(img)
     
+    return cv2.cvtColor(preProcessImg(cv2.imread('sample.jpg')),cv2.COLOR_BGR2RGB)
+
+def laneimage():   
+# def averageFilter():
+    st.header("Image Lane Detection")
+
+    img = uploadImage(0)
+
+    originalImg, filteredImg = st.columns(2)
+
+    with originalImg:
+        # Original Image
+        st.subheader("Original Image")
+        st.image(img,use_column_width=True)
+
+    with filteredImg:    
+        st.subheader("Lane Detected Image")
+        fig = plt.figure(figsize=(20, 10))
+        image = img
+        st.image(lane_finding_pipeline(image))
+        
+def lanevideo():
+    st.header("Video Lane Detection")
+    st.title('Lane Detection')
+    st.header('Upload a video and detect lane')
+
+    st.header('Input Video')
+
+    f = st.file_uploader("Upload file")
+    if f is not None:
+        file_details = {"FileName":f.name,"FileType":f.type}
+        st.write(file_details)  
+    with open(f.name,"wb") as ff: 
+        ff.write(f.getbuffer())         
+    st.success("Saved File")
+    tfile = tempfile.NamedTemporaryFile(delete=False) 
+    tfile.write(f.read())
+
+    vf = cv2.VideoCapture(tfile.name)
+
+    stframe = st.empty()
+
+    while vf.isOpened():
+        ret, frame = vf.read()
+        # if frame is read correctly ret is True
+        if not ret:
+            print("Can't receive frame (stream end?). Exiting ...")
+            break
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        stframe.image(gray)
+        
+    st.header('Processing......')
+    white_output = './output.mp4'
+    clip1 = VideoFileClip(f.name)#("input.mp4")
+    white_clip = clip1.fl_image(lane_finding_pipeline) #NOTE: this function expects color images!!
+    white_clip.write_videofile(white_output, audio=False)
+
+    video_file = open('output.mp4', 'rb')
+    video_bytes = video_file.read()
+
+    st.video(video_bytes)
+
+
 def canny(img, low_threshold, high_threshold):
     """Applies the Canny transform"""
     return cv2.Canny(img, low_threshold, high_threshold)
@@ -65,22 +163,6 @@ def region_of_interest(img, vertices):
 
 
 def draw_lines(img, lines, color=[255, 0, 0], thickness=10):
-    """
-    NOTE: this is the function you might want to use as a starting point once you want to 
-    average/extrapolate the line segments you detect to map out the full
-    extent of the lane (going from the result shown in raw-lines-example.mp4
-    to that shown in P1_example.mp4).  
-    
-    Think about things like separating line segments by their 
-    slope ((y2-y1)/(x2-x1)) to decide which segments are part of the left
-    line vs. the right line.  Then, you can average the position of each of 
-    the lines and extrapolate to the top and bottom of the lane.
-    
-    This function draws `lines` with `color` and `thickness`.    
-    Lines are drawn on the image inplace (mutates the image).
-    If you want to make the lines semi-transparent, think about combining
-    this function with the weighted_img() function below
-    """
     for line in lines:
         for x1,y1,x2,y2 in line:
             cv2.line(img, (x1, y1), (x2, y2), color, thickness)
@@ -150,17 +232,6 @@ def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
 # Python 3 has support for cool math symbols.
 
 def weighted_img(img, initial_img, α=0.1, β=1., γ=0.):
-    """
-    `img` is the output of the hough_lines(), An image with lines drawn on it.
-    Should be a blank image (all black) with lines drawn on it.
-    
-    `initial_img` should be the image before any processing.
-    
-    The result image is computed as follows:
-    
-    initial_img * α + img * β + γ
-    NOTE: initial_img and img must be the same shape!
-    """
     lines_edges = cv2.addWeighted(initial_img, α, img, β, γ)
     #lines_edges = cv2.polylines(lines_edges,get_vertices(img), True, (0,0,255), 10)
     return lines_edges
@@ -192,56 +263,10 @@ def lane_finding_pipeline(image):
     
     return output
 
-st.title('Lane Detection')
-st.header('Upload a video and detect lane')
-
-st.header('Input Video')
-
-f = st.file_uploader("Upload file")
-if f is not None:
-    file_details = {"FileName":f.name,"FileType":f.type}
-    st.write(file_details)
-    # st.write(type(st.video_file))
-    # vid = st.load_video(f)
-# with open(os.path.join("Streamlit - Copy",f.name),"wb") as f: 
-#       f.write(f.getbuffer())  
-
-# time.sleep(10)
-with open(f.name,"wb") as ff: 
-      ff.write(f.getbuffer())         
-st.success("Saved File")
-tfile = tempfile.NamedTemporaryFile(delete=False) 
-tfile.write(f.read())
-
-vf = cv2.VideoCapture(tfile.name)
-
-stframe = st.empty()
-
-while vf.isOpened():
-    ret, frame = vf.read()
-    # if frame is read correctly ret is True
-    if not ret:
-        print("Can't receive frame (stream end?). Exiting ...")
-        break
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    stframe.image(gray)
+def grayscale(img):
+    return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    # Or use BGR2GRAY if you read an image with cv2.imread()
+    # return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-st.header('Processing......')
-
-
-white_output = './output.mp4'
-## To speed up the testing process you may want to try your pipeline on a shorter subclip of the video
-## To do so add .subclip(start_second,end_second) to the end of the line below
-## Where start_second and end_second are integer values representing the start and end of the subclip
-## You may also uncomment the following line for a subclip of the first 5 seconds
-#clip1 = VideoFileClip("test_videos/jaipurHighway.mp4").subclip(50,60)
-# os.path.join("tempDir",f.name),"wb"
-
-clip1 = VideoFileClip(f.name)#("input.mp4")
-white_clip = clip1.fl_image(lane_finding_pipeline) #NOTE: this function expects color images!!
-white_clip.write_videofile(white_output, audio=False)
-
-video_file = open('output.mp4', 'rb')
-video_bytes = video_file.read()
-
-st.video(video_bytes)
+if __name__ == "__main__":
+    main()
