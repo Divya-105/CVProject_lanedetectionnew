@@ -6,12 +6,13 @@ import cv2
 
 import os
 import tempfile
-import cv2
+
 import streamlit as st
 import pandas as pd
-import numpy as np
+
 import subprocess
 import sys
+import time
 # Import everything needed to edit/save/watch video clips
 from moviepy.editor import VideoFileClip
 from IPython.display import HTML
@@ -204,7 +205,9 @@ if f is not None:
     # st.write(type(st.video_file))
     # vid = st.load_video(f)
 # with open(os.path.join("Streamlit - Copy",f.name),"wb") as f: 
-#       f.write(f.getbuffer())         
+#       f.write(f.getbuffer())  
+
+time.sleep(10)
 with open(f.name,"wb") as ff: 
       ff.write(f.getbuffer())         
 st.success("Saved File")
