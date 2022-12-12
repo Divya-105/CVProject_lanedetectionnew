@@ -207,7 +207,7 @@ if f is not None:
 # with open(os.path.join("Streamlit - Copy",f.name),"wb") as f: 
 #       f.write(f.getbuffer())  
 
-time.sleep(10)
+# time.sleep(10)
 with open(f.name,"wb") as ff: 
       ff.write(f.getbuffer())         
 st.success("Saved File")
