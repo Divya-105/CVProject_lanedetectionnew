@@ -34,9 +34,9 @@ def main():
     }
     </style>
     """
-    st.title('Lane Detection')
-    st.write(font_css, unsafe_allow_html=True)
 
+    st.write(font_css, unsafe_allow_html=True)
+    st.title('Lane Detection')
     tabs = st.tabs(('Image Lane Detection', 'Video Lane Detection'))
 
     # UI Options  
@@ -88,7 +88,9 @@ def laneimage():
         
 def lanevideo():
     st.header("Video Lane Detection")
+    
     st.header('Upload a video and detect lane')
+
     st.header('Input Video')
 
     f = st.file_uploader("Upload file")
