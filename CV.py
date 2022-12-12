@@ -18,7 +18,6 @@ from moviepy.editor import VideoFileClip
 from IPython.display import HTML
 
 #%matplotlib inline
-showWarningOnDirectExecution = false
 import math
 
 def grayscale(img):
